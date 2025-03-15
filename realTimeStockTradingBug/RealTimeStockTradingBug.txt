@@ -1,0 +1,167 @@
+Assessment: Debugging a Complex Java Microservice Bug
+Objective: This assessment is designed to evaluate a senior software engineer's ability to debug a complex, multi-threaded Java-based microservice application within a 40-minute time frame. The problem involves thread synchronization, rate limiting, and analyzing a heap dump to identify memory-related issues. The assessment will test the candidate's problem-solving skills, technical expertise, and ability to work under time constraints.
+
+Scenario
+You are working on a Java-based microservice application that handles real-time stock trading. The application consists of the following components:
+	1	Trade Service: Handles incoming trade requests and processes them.
+	2	Rate Limiter Service: Ensures that no single user exceeds the allowed number of trades per second.
+	3	Market Data Service: Provides real-time market data for trade execution.
+	4	API Gateway: Routes requests to the appropriate microservice.
+Recently, a bug was reported where the application becomes unresponsive under high load. The logs show thread deadlocks, and the system occasionally runs out of memory. A heap dump has been provided for analysis.
+
+Bug Description
+	•	Error Logs:  Copy  java.lang.OutOfMemoryError: Java heap space
+	•	at com.example.trade.TradeService.processTrade(TradeService.java:67) 
+	•	Symptoms:
+	◦	The application becomes unresponsive under high load.
+	◦	Thread deadlocks are observed in the logs.
+	◦	The system occasionally runs out of memory.
+	◦	The issue is intermittent and hard to reproduce consistently.
+
+Assessment Tasks
+	1	Analyze the Code (10 minutes)
+	◦	Review the provided code snippets for the Trade Service, Rate Limiter Service, and Market Data Service.
+	◦	Identify potential causes of the OutOfMemoryError and thread deadlocks.
+	2	Debug the Issue (20 minutes)
+	◦	Reproduce the issue using the provided test cases or by simulating the scenario.
+	◦	Fix the bug in the Trade Service, Rate Limiter Service, and Market Data Service code.
+	◦	Analyze the provided heap dump to identify memory leaks.
+	3	Validate the Fix (5 minutes)
+	◦	Run the test cases to ensure the bug is resolved.
+	◦	Verify that the application remains responsive under high load and no memory issues occur.
+	4	Document the Solution (5 minutes)
+	◦	Write a brief explanation of the root cause and the steps taken to fix the issue.
+	◦	Suggest any improvements to prevent similar issues in the future.
+
+Provided Code Snippets
+TradeService.java
+java
+Copy
+public class TradeService {
+    private RateLimiterService rateLimiterService;
+    private MarketDataService marketDataService;
+
+    public TradeService(RateLimiterService rateLimiterService, MarketDataService marketDataService) {
+        this.rateLimiterService = rateLimiterService;
+        this.marketDataService = marketDataService;
+    }
+
+    public void processTrade(TradeRequest tradeRequest) {
+        if (rateLimiterService.allowRequest(tradeRequest.getUserId())) {
+            MarketData marketData = marketDataService.getMarketData(tradeRequest.getSymbol());
+            // Process the trade...
+        } else {
+            throw new RateLimitExceededException("Rate limit exceeded for user: " + tradeRequest.getUserId());
+        }
+    }
+}
+RateLimiterService.java
+java
+Copy
+public class RateLimiterService {
+    private Map<String, Long> requestCounts = new HashMap<>();
+    private final long rateLimit = 10; // 10 requests per second
+
+    public synchronized boolean allowRequest(String userId) {
+        long currentTime = System.currentTimeMillis();
+        Long lastRequestTime = requestCounts.get(userId);
+
+        if (lastRequestTime == null || (currentTime - lastRequestTime) > 1000) {
+            requestCounts.put(userId, currentTime);
+            return true;
+        } else {
+            return false;
+        }
+    }
+}
+MarketDataService.java
+java
+Copy
+public class MarketDataService {
+    private Map<String, MarketData> marketDataCache = new HashMap<>();
+
+    public MarketData getMarketData(String symbol) {
+        MarketData data = marketDataCache.get(symbol);
+        if (data == null) {
+            data = fetchMarketDataFromRemote(symbol);
+            marketDataCache.put(symbol, data);
+        }
+        return data;
+    }
+
+    private MarketData fetchMarketDataFromRemote(String symbol) {
+        // Simulate a network call to fetch market data
+        return new MarketData(symbol, 100.0); // Example data
+    }
+}
+
+Heap Dump Analysis
+	•	Heap Dump File: heapdump.hprof
+	•	Tools: Use tools like Eclipse MAT or VisualVM to analyze the heap dump.
+	•	Objective: Identify memory leaks and objects consuming excessive memory.
+
+Expected Deliverables
+	1	Fixed Code:
+	◦	Provide the corrected TradeService.java, RateLimiterService.java, and MarketDataService.java files.
+	2	Heap Dump Analysis:
+	◦	Provide a brief analysis of the heap dump, identifying any memory leaks or excessive memory usage.
+	3	Root Cause Analysis:
+	◦	Explain why the OutOfMemoryError and thread deadlocks were occurring and how you fixed them.
+	4	Preventive Measures:
+	◦	Suggest improvements to the code or architecture to avoid similar issues in the future.
+
+Evaluation Criteria
+	1	Problem-Solving Skills:
+	◦	Ability to quickly identify the root cause of the issue.
+	2	Technical Expertise:
+	◦	Proficiency in Java, multi-threading, and memory management.
+	◦	Correct use of synchronization, rate limiting, and memory leak prevention.
+	3	Time Management:
+	◦	Ability to debug and fix the issue within the 40-minute time frame.
+	4	Code Quality:
+	◦	Clean, maintainable, and well-documented code.
+	5	Communication:
+	◦	Clear and concise explanation of the solution.
+
+Time Allocation
+	•	Analyze the Code: 10 minutes
+	•	Debug the Issue: 20 minutes
+	•	Validate the Fix: 5 minutes
+	•	Document the Solution: 5 minutes
+
+Solution Hints
+	•	The OutOfMemoryError may be caused by the MarketDataService cache growing indefinitely.
+	•	The RateLimiterService may cause thread deadlocks due to synchronized methods.
+	•	Consider using a ConcurrentHashMap for thread-safe operations in RateLimiterService.
+	•	Implement a cache eviction policy in MarketDataService to prevent memory leaks.
+
+Conclusion
+This assessment will help evaluate the candidate's ability to debug a complex, multi-threaded issue in a microservice architecture, demonstrating their problem-solving skills, technical expertise, and ability to work under pressure.
+
+
+
+Solution -->>>
+
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+public class RateLimiterService {
+    private Map<String, Long> lastRequestTimestamps = new ConcurrentHashMap<>();
+    private final long rateLimitWindow = 1000; // 1 second window
+    private final int rateLimit = 10; // 10 requests per second
+
+    public boolean allowRequest(String userId) {
+        long currentTime = System.currentTimeMillis();
+        Long lastRequestTime = lastRequestTimestamps.get(userId);
+
+        if (lastRequestTime == null || (currentTime - lastRequestTime) > rateLimitWindow) {
+            // If no previous request or the last request was outside the rate limit window, allow the request
+            lastRequestTimestamps.put(userId, currentTime);
+            return true;
+        } else {
+            // If the last request was within the rate limit window, deny the request
+            return false;
+        }
+    }
+}

@@ -1,0 +1,172 @@
+Hard Problem: Distributed Rate Limiting with Sliding Windows
+Scenario
+You are working on a distributed microservice architecture where multiple instances of the RateLimiterService are running behind a load balancer. Each instance needs to enforce a global rate limit across all instances. Additionally, the rate limiting should use a sliding window algorithm to ensure fairness and accuracy.
+
+Requirements
+	1	Distributed Rate Limiting:
+	◦	Rate limiting must be enforced globally across all instances of the service.
+	◦	Use a distributed cache (e.g., Redis) to store request counts and timestamps.
+	2	Sliding Window Algorithm:
+	◦	Implement a sliding window rate limiting algorithm to ensure that requests are counted within a rolling time window (e.g., last 10 seconds).
+	3	Thread Safety:
+	◦	Handle concurrent requests safely without race conditions.
+	4	Scalability:
+	◦	Ensure the solution can handle a high volume of requests and users.
+	5	Configuration:
+	◦	Allow the rate limit (e.g., 100 requests per 10 seconds) to be configurable.
+
+Updated Problem Description
+The RateLimiterService must:
+	•	Use a distributed cache (e.g., Redis) to store request counts and timestamps.
+	•	Implement a sliding window algorithm to count requests within a rolling time window.
+	•	Handle concurrent requests safely.
+	•	Be scalable and efficient in terms of memory and performance.
+
+Solution Design
+1. Distributed Cache (Redis)
+We’ll use Redis to store request counts and timestamps. Each user will have a sorted set in Redis where:
+	•	The score is the timestamp of the request.
+	•	The value is a unique identifier for the request (e.g., a UUID).
+2. Sliding Window Algorithm
+For each request:
+	•	Remove all timestamps older than the sliding window (e.g., 10 seconds).
+	•	Count the number of timestamps remaining in the window.
+	•	If the count is below the rate limit, allow the request and add the new timestamp to the set.
+	•	If the count exceeds the rate limit, deny the request.
+3. Thread Safety
+	•	Use Redis transactions (MULTI/EXEC) to ensure atomic operations.
+	•	Handle concurrent requests safely using Redis locks or Lua scripting.
+
+Implementation
+Below is the updated RateLimiterService implementation using Redis and a sliding window algorithm.
+
+RateLimiterService.java
+java
+Copy
+import redis.clients.jedis.Jedis;
+import redis.clients.jedis.Response;
+import redis.clients.jedis.Transaction;
+import redis.clients.jedis.exceptions.JedisException;
+
+import java.util.Set;
+import java.util.UUID;
+
+public class RateLimiterService {
+    private static final String REDIS_HOST = "localhost";
+    private static final int REDIS_PORT = 6379;
+    private static final int RATE_LIMIT = 100; // 100 requests per window
+    private static final long WINDOW_SIZE_MS = 10_000; // 10-second window
+
+    private Jedis jedis;
+
+    public RateLimiterService() {
+        this.jedis = new Jedis(REDIS_HOST, REDIS_PORT);
+    }
+
+    public boolean allowRequest(String userId) {
+        long currentTime = System.currentTimeMillis();
+        long windowStart = currentTime - WINDOW_SIZE_MS;
+
+        String userKey = "rate_limit:" + userId;
+
+        try {
+            // Start a Redis transaction
+            Transaction transaction = jedis.multi();
+
+            // Remove timestamps older than the window
+            transaction.zremrangeByScore(userKey, 0, windowStart);
+
+            // Count the number of requests in the current window
+            Response<Long> requestCount = transaction.zcard(userKey);
+
+            // If under the limit, add the new request and allow it
+            if (requestCount.get() < RATE_LIMIT) {
+                transaction.zadd(userKey, currentTime, UUID.randomUUID().toString());
+                transaction.expire(userKey, WINDOW_SIZE_MS / 1000); // Set TTL for the key
+                transaction.exec();
+                return true;
+            } else {
+                // If over the limit, discard the transaction and deny the request
+                transaction.discard();
+                return false;
+            }
+        } catch (JedisException e) {
+            e.printStackTrace();
+            return false; // Deny the request if Redis fails
+        }
+    }
+
+    public void close() {
+        jedis.close();
+    }
+}
+
+Key Components
+	1	Redis Sorted Set:
+	◦	Each user has a sorted set in Redis where:
+	▪	The score is the timestamp of the request.
+	▪	The value is a unique identifier for the request (e.g., a UUID).
+	2	Sliding Window Logic:
+	◦	Remove all timestamps older than the window using zremrangeByScore.
+	◦	Count the number of timestamps in the window using zcard.
+	◦	If the count is below the limit, add the new timestamp and allow the request.
+	3	Thread Safety:
+	◦	Redis transactions (MULTI/EXEC) ensure atomicity.
+	◦	Concurrent requests are handled safely by Redis.
+	4	Scalability:
+	◦	Redis is a distributed cache, so the solution scales horizontally across multiple instances.
+
+Testing the Implementation
+RateLimiterServiceTest.java
+java
+Copy
+public class RateLimiterServiceTest {
+    public static void main(String[] args) throws InterruptedException {
+        RateLimiterService rateLimiterService = new RateLimiterService();
+        String userId = "user123";
+
+        // Simulate 110 requests within 10 seconds
+        for (int i = 1; i <= 110; i++) {
+            boolean allowed = rateLimiterService.allowRequest(userId);
+            System.out.println("Request " + i + ": " + (allowed ? "Allowed" : "Denied"));
+            Thread.sleep(100); // Simulate a delay between requests
+        }
+
+        // Wait for the rate limit window to reset
+        Thread.sleep(10_000);
+
+        // Simulate another request after the rate limit window has reset
+        boolean allowed = rateLimiterService.allowRequest(userId);
+        System.out.println("Request after reset: " + (allowed ? "Allowed" : "Denied"));
+
+        rateLimiterService.close();
+    }
+}
+
+Expected Output
+
+Copy
+Request 1: Allowed
+Request 2: Allowed
+...
+Request 100: Allowed
+Request 101: Denied
+...
+Request 110: Denied
+Request after reset: Allowed
+	•	The first 100 requests are allowed.
+	•	Requests 101–110 are denied because they exceed the rate limit.
+	•	After the window resets, the next request is allowed.
+
+Further Enhancements
+	1	Dynamic Configuration:
+	◦	Allow the rate limit and window size to be configured dynamically (e.g., via a configuration service).
+	2	Distributed Locking:
+	◦	Use Redis distributed locks (SETNX) for more complex scenarios.
+	3	Monitoring and Metrics:
+	◦	Integrate with a monitoring system (e.g., Prometheus) to track rate limit usage.
+	4	Fallback Mechanism:
+	◦	Implement a fallback mechanism (e.g., in-memory rate limiting) if Redis is unavailable.
+
+Conclusion
+This solution addresses the challenges of distributed rate limiting, sliding windows, and thread safety. It leverages Redis for distributed state management and ensures scalability and efficiency. This is a much harder problem that tests advanced skills in distributed systems, concurrency, and algorithm design.

@@ -1,0 +1,100 @@
+Assessment: Debugging a Java Microservice Bug
+Objective: This assessment is designed to evaluate a senior software engineer's ability to debug a Java-based microservice application within a 40-minute time frame. The assessment will test the candidate's problem-solving skills, technical expertise, and ability to work under time constraints.
+
+Scenario
+You are working on a Java-based microservice application that processes customer orders. The application consists of the following components:
+	1	Order Service: Handles order creation and updates.
+	2	Payment Service: Processes payments for orders.
+	3	Inventory Service: Manages product inventory.
+	4	API Gateway: Routes requests to the appropriate microservice.
+Recently, a bug was reported where customers are unable to place orders. The error occurs intermittently, and the logs show a NullPointerException in the Order Service when trying to process payment.
+
+Bug Description
+	•	Error Logs:  Copy  java.lang.NullPointerException: Cannot invoke "com.example.payment.PaymentResponse.getStatus()" because "paymentResponse" is null
+	•	at com.example.order.OrderService.processOrder(OrderService.java:45) 
+	•	Symptoms:
+	◦	Orders are not being processed successfully.
+	◦	The Payment Service occasionally returns a null response.
+	◦	The issue is intermittent and hard to reproduce consistently.
+
+Assessment Tasks
+	1	Analyze the Code (10 minutes)
+	◦	Review the provided code snippets for the Order Service and Payment Service.
+	◦	Identify potential causes of the NullPointerException.
+	2	Debug the Issue (20 minutes)
+	◦	Reproduce the issue using the provided test cases or by simulating the scenario.
+	◦	Fix the bug in the Order Service and Payment Service code.
+	3	Validate the Fix (5 minutes)
+	◦	Run the test cases to ensure the bug is resolved.
+	◦	Verify that orders are processed successfully without exceptions.
+	4	Document the Solution (5 minutes)
+	◦	Write a brief explanation of the root cause and the steps taken to fix the issue.
+	◦	Suggest any improvements to prevent similar issues in the future.
+
+Provided Code Snippets
+OrderService.java
+java
+Copy
+public class OrderService {
+    private PaymentServiceClient paymentServiceClient;
+
+    public Order processOrder(Order order) {
+        PaymentResponse paymentResponse = paymentServiceClient.processPayment(order.getPaymentDetails());
+        
+        if (paymentResponse.getStatus().equals("SUCCESS")) {
+            order.setStatus("PAID");
+            // Further processing...
+        } else {
+            order.setStatus("FAILED");
+        }
+        return order;
+    }
+}
+PaymentServiceClient.java
+java
+Copy
+public class PaymentServiceClient {
+    public PaymentResponse processPayment(PaymentDetails paymentDetails) {
+        // Simulate a network call to the Payment Service
+        if (Math.random() > 0.5) {
+            return new PaymentResponse("SUCCESS");
+        } else {
+            return null; // Simulate a failed or null response
+        }
+    }
+}
+
+Expected Deliverables
+	1	Fixed Code:
+	◦	Provide the corrected OrderService.java and PaymentServiceClient.java files.
+	2	Root Cause Analysis:
+	◦	Explain why the NullPointerException was occurring and how you fixed it.
+	3	Preventive Measures:
+	◦	Suggest improvements to the code or architecture to avoid similar issues in the future.
+
+Evaluation Criteria
+	1	Problem-Solving Skills:
+	◦	Ability to quickly identify the root cause of the issue.
+	2	Technical Expertise:
+	◦	Proficiency in Java and microservice architecture.
+	◦	Correct use of exception handling and defensive programming.
+	3	Time Management:
+	◦	Ability to debug and fix the issue within the 40-minute time frame.
+	4	Code Quality:
+	◦	Clean, maintainable, and well-documented code.
+	5	Communication:
+	◦	Clear and concise explanation of the solution.
+
+Time Allocation
+	•	Analyze the Code: 10 minutes
+	•	Debug the Issue: 20 minutes
+	•	Validate the Fix: 5 minutes
+	•	Document the Solution: 5 minutes
+
+Solution Hints
+	•	The NullPointerException occurs because the PaymentServiceClient may return a null response, which is not handled in the OrderService.
+	•	Consider adding null checks or using Optional to handle potential null responses.
+	•	Ensure proper error handling and logging for better debugging in production.
+
+Conclusion
+This assessment will help evaluate the candidate's ability to debug a complex issue in a microservice architecture, demonstrating their problem-solving skills, technical expertise, and ability to work under pressure.
